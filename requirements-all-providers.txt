@@ -1,0 +1,17 @@
+# Complete Multi-LLM Engineer with all provider support
+# This installs all dependencies for all supported LLM providers
+
+# Core dependencies
+openai>=1.58.1
+prompt-toolkit>=3.0.50
+pydantic>=2.10.4
+python-dotenv>=1.0.1
+rich>=13.9.4
+
+# Anthropic Claude SDK
+anthropic>=0.34.0
+
+# Google Gemini SDK
+google-generativeai>=0.8.0
+
+# Note: Ollama and DeepSeek use OpenAI-compatible APIs (no additional SDKs needed)

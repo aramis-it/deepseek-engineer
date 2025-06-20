@@ -1,0 +1,24 @@
+# Core dependencies (required)
+openai>=1.58.1
+prompt-toolkit>=3.0.50
+pydantic>=2.10.4
+python-dotenv>=1.0.1
+rich>=13.9.4
+
+# Optional dependencies for additional LLM providers
+# Uncomment the providers you want to use:
+
+# For Anthropic Claude support
+# anthropic>=0.34.0
+
+# For Google Gemini support
+# google-generativeai>=0.8.0
+
+# For local Ollama support (no additional packages needed)
+# Ollama uses OpenAI-compatible API
+
+# Installation examples:
+# pip install -r requirements-multi.txt                    # Core only
+# pip install -r requirements-multi.txt anthropic         # Core + Claude
+# pip install -r requirements-multi.txt google-generativeai  # Core + Gemini
+# pip install -r requirements-multi.txt anthropic google-generativeai  # All providers

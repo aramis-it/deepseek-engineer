@@ -5,7 +5,7 @@ import sys
 import json
 from pathlib import Path
 from textwrap import dedent
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from openai import OpenAI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -28,13 +28,96 @@ prompt_session = PromptSession(
 )
 
 # --------------------------------------------------------------------------------
-# 1. Configure OpenAI client and load environment variables
+# 1. LLM Provider Configuration
 # --------------------------------------------------------------------------------
 load_dotenv()  # Load environment variables from .env file
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)  # Configure for DeepSeek API
+
+class LLMProvider:
+    """Base class for LLM providers"""
+    def __init__(self, name: str, client: Any, model: str, supports_tools: bool = True, supports_reasoning: bool = False):
+        self.name = name
+        self.client = client
+        self.model = model
+        self.supports_tools = supports_tools
+        self.supports_reasoning = supports_reasoning
+
+# Available LLM providers
+PROVIDERS = {}
+
+# DeepSeek (default)
+if os.getenv("DEEPSEEK_API_KEY"):
+    PROVIDERS["deepseek"] = LLMProvider(
+        name="DeepSeek",
+        client=OpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"),
+        model="deepseek-reasoner",
+        supports_tools=True,
+        supports_reasoning=True
+    )
+
+# OpenAI
+if os.getenv("OPENAI_API_KEY"):
+    PROVIDERS["openai"] = LLMProvider(
+        name="OpenAI",
+        client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")),
+        model="gpt-4o",
+        supports_tools=True,
+        supports_reasoning=False
+    )
+
+# Anthropic Claude (via OpenAI-compatible API)
+if os.getenv("ANTHROPIC_API_KEY"):
+    try:
+        import anthropic
+        PROVIDERS["claude"] = LLMProvider(
+            name="Claude",
+            client=anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY")),
+            model="claude-3-5-sonnet-20241022",
+            supports_tools=True,
+            supports_reasoning=False
+        )
+    except ImportError:
+        console.print("[yellow]Warning: anthropic package not installed. Claude support disabled.[/yellow]")
+
+# Google Gemini
+if os.getenv("GOOGLE_API_KEY"):
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        PROVIDERS["gemini"] = LLMProvider(
+            name="Gemini",
+            client=genai.GenerativeModel('gemini-1.5-pro'),
+            model="gemini-1.5-pro",
+            supports_tools=True,
+            supports_reasoning=False
+        )
+    except ImportError:
+        console.print("[yellow]Warning: google-generativeai package not installed. Gemini support disabled.[/yellow]")
+
+# Ollama (local)
+if os.getenv("OLLAMA_BASE_URL") or os.path.exists("/usr/local/bin/ollama"):
+    PROVIDERS["ollama"] = LLMProvider(
+        name="Ollama",
+        client=OpenAI(
+            api_key="ollama",  # Ollama doesn't require API key
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        ),
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        supports_tools=True,
+        supports_reasoning=False
+    )
+
+# Select current provider
+current_provider_key = os.getenv("LLM_PROVIDER", "deepseek")
+if current_provider_key not in PROVIDERS:
+    # Fallback to first available provider
+    if PROVIDERS:
+        current_provider_key = list(PROVIDERS.keys())[0]
+    else:
+        console.print("[bold red]❌ No LLM providers configured! Please set up API keys in .env file.[/bold red]")
+        sys.exit(1)
+
+current_provider = PROVIDERS[current_provider_key]
+client = current_provider.client
 
 # --------------------------------------------------------------------------------
 # 2. Define our schema using Pydantic for type safety
@@ -165,10 +248,14 @@ tools = [
 # --------------------------------------------------------------------------------
 # 3. system prompt
 # --------------------------------------------------------------------------------
-system_PROMPT = dedent("""\
-    You are an elite software engineer called DeepSeek Engineer with decades of experience across all programming domains.
+system_PROMPT = dedent(f"""\
+    You are an elite software engineer called Multi-LLM Engineer with decades of experience across all programming domains.
     Your expertise spans system design, algorithms, testing, and best practices.
     You provide thoughtful, well-structured solutions while explaining your reasoning.
+    
+    Current LLM Provider: {current_provider.name} ({current_provider.model})
+    Reasoning Support: {'Yes' if current_provider.supports_reasoning else 'No'}
+    Function Calling: {'Yes' if current_provider.supports_tools else 'No'}
 
     Core capabilities:
     1. Code Analysis & Discussion
